@@ -3,11 +3,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const API_URL = 'https://studysphere-backend-richa.onrender.com/api';
     const SOCKET_URL = 'https://studysphere-backend-richa.onrender.com';
     const token = localStorage.getItem('token');
-    let currentUserId = null;
-
+    
     // --- Bulletproof Path Detection (THE FINAL FIX) ---
-    // Get the last part of the URL path (e.g., 'dashboard.html' or 'dashboard')
-    const pageIdentifier = window.location.pathname.split('/').pop() || 'index.html';
+    // 1. Get the path
+    let path = window.location.pathname;
+    // 2. Remove trailing slash if it's not the root
+    if (path.length > 1 && path.endsWith('/')) {
+        path = path.slice(0, -1);
+    }
+    // 3. Get the last segment
+    const pageIdentifier = path.split('/').pop() || 'index.html';
 
     // --- Authentication Check ---
     const protectedPages = ['dashboard.html', 'dashboard', 'groups.html', 'groups', 'group.html', 'group'];
@@ -283,6 +288,7 @@ function setupGroupDetailPage() {
 
     const appendMessage = (msg) => {
         if (!chatMessagesEl) return;
+        let currentUserId = localStorage.getItem('currentUserId'); // Retrieve from storage
         const isMe = msg.user._id === currentUserId;
         const messageDiv = document.createElement('div');
         messageDiv.className = `flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'}`;
