@@ -6,15 +6,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentUserId = null;
 
     // --- Bulletproof Path Detection (THE FINAL FIX) ---
-    let pageIdentifier = window.location.pathname.split('/').pop();
-    if (pageIdentifier === '') pageIdentifier = 'index.html'; // Handles the root URL case
+    // Get the last part of the URL path (e.g., 'dashboard.html' or 'dashboard')
+    const pageIdentifier = window.location.pathname.split('/').pop() || 'index.html';
 
     // --- Authentication Check ---
     const protectedPages = ['dashboard.html', 'dashboard', 'groups.html', 'groups', 'group.html', 'group'];
     if (protectedPages.includes(pageIdentifier) && !token) {
-        // Redirect to login if on a protected page without a token
         window.location.href = 'login.html';
-        return;
+        return; // Stop execution
     }
 
     // --- General UI Setup ---
@@ -29,12 +28,11 @@ document.addEventListener('DOMContentLoaded', () => {
         setupGroupsPage();
     }
 
-    // --- Auth Forms & Modals (Run on all pages for elements that might exist globally) ---
+    // --- Auth Forms & Modals ---
     setupAuthForms();
     setupCreateGroupModal();
     if (window.lucide) lucide.createIcons();
 });
-
 
 // --- Helper Functions and Event Handlers ---
 
@@ -72,7 +70,7 @@ function setupAuthForms() {
                 localStorage.setItem('token', data.token);
                 window.location.href = 'dashboard.html';
             } catch (err) {
-                alert(`Login Error: ${err.message}`);
+                showCustomAlert(`Login Error: ${err.message}`);
             }
         });
     }
@@ -95,7 +93,7 @@ function setupAuthForms() {
                 localStorage.setItem('token', data.token);
                 window.location.href = 'dashboard.html';
             } catch (err) {
-                alert(`Registration Error: ${err.message}`);
+                showCustomAlert(`Registration Error: ${err.message}`);
             }
         });
     }
@@ -110,7 +108,7 @@ async function populateDashboard() {
         const userRes = await fetch(`${API_URL}/auth/me`, { headers: { 'x-auth-token': token } });
 
         if (userRes.status === 401) {
-            alert('Your session has expired. Please log in again.');
+            showCustomAlert('Your session has expired. Please log in again.');
             localStorage.removeItem('token');
             window.location.href = 'login.html';
             return;
@@ -121,7 +119,7 @@ async function populateDashboard() {
         }
 
         const user = await userRes.json();
-        let currentUserId = user._id; // Set current user ID
+        let currentUserId = user._id;
         document.getElementById('user-name').textContent = user.fullName;
 
         // 2. Only after user data is successful, fetch group data
@@ -135,7 +133,7 @@ async function populateDashboard() {
         renderMyGroups(groups);
 
     } catch (err) {
-        alert(err.message);
+        showCustomAlert(err.message);
     }
 }
 
@@ -162,8 +160,6 @@ function renderMyGroups(groups) {
     });
     if (window.lucide) lucide.createIcons();
 }
-
-// ... All other functions (setupGroupDetailPage, setupGroupsPage, etc.) remain the same as your latest version ...
 
 function setupGroupDetailPage() {
     const API_URL = 'https://studysphere-backend-richa.onrender.com/api';
@@ -253,9 +249,7 @@ function setupGroupDetailPage() {
                 requestsPanel.classList.add('hidden');
             }
         } catch (err) {
-            alert(`Error loading join requests: ${err.message}`);
-            requestsPanel.classList.remove('hidden');
-            requestsList.innerHTML = `<p class="text-red-500 text-center">Could not load join requests.</p>`;
+            showCustomAlert(`Error loading join requests: ${err.message}`);
         }
     };
 
@@ -274,14 +268,14 @@ function setupGroupDetailPage() {
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.msg);
 
-                alert(`Request ${action}d successfully.`);
+                showCustomAlert(`Request ${action}d successfully.`);
                 button.closest('.flex').parentElement.remove();
                 if (document.getElementById('join-requests-list').children.length === 0) {
                     document.getElementById('join-requests-panel').classList.add('hidden');
                 }
 
             } catch (err) {
-                alert(`Error: ${err.message}`);
+                showCustomAlert(`Error: ${err.message}`);
                 button.disabled = false;
             }
         }
@@ -361,7 +355,7 @@ function setupGroupDetailPage() {
             if (!res.ok) throw new Error('Upload failed.');
             e.target.reset();
         } catch (err) {
-            alert(err.message);
+            showCustomAlert(err.message);
         } finally {
             button.textContent = 'Upload';
             button.disabled = false;
@@ -369,8 +363,8 @@ function setupGroupDetailPage() {
     });
 
     document.getElementById('share-group-btn')?.addEventListener('click', () => {
-        const inviteLink = `${window.location.origin}${window.location.pathname.replace('group.html', 'groups.html')}?join=${groupId}`;
-        navigator.clipboard.writeText(inviteLink).then(() => alert('Group invite link copied to clipboard!'));
+        const inviteLink = `${window.location.origin}/groups.html?join=${groupId}`;
+        navigator.clipboard.writeText(inviteLink).then(() => showCustomAlert('Group invite link copied to clipboard!'));
     });
 }
 
@@ -401,14 +395,14 @@ function setupGroupsPage() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.msg);
 
-            alert(data.msg);
+            showCustomAlert(data.msg);
             if (data.group) {
                 btn.textContent = 'Joined';
             } else {
                 btn.textContent = 'Requested';
             }
         } catch (err) {
-            alert(`Error: ${err.message}`);
+            showCustomAlert(`Error: ${err.message}`);
             btn.disabled = false;
             btn.textContent = 'Join';
         }
@@ -419,7 +413,7 @@ function setupGroupsPage() {
         if (!listEl) return;
         listEl.innerHTML = '';
         if (groups.length === 0) {
-            listEl.innerHTML = `<p class="text-slate-500 col-span-full">No public groups available to join right now.</p>`;
+            listEl.innerHTML = `<p class="text-slate-500 col-span-full text-center">No public groups available to join right now.</p>`;
             return;
         }
         groups.forEach(group => {
@@ -475,7 +469,7 @@ function setupGroupsPage() {
                     const data = await joinRes.json();
                     if (!joinRes.ok) throw new Error(data.msg || 'Failed to send request.');
 
-                    alert(data.msg);
+                    showCustomAlert(data.msg);
                     if (data.group) {
                         window.location.href = `group.html?id=${groupId}`;
                     } else {
@@ -491,7 +485,7 @@ function setupGroupsPage() {
                         });
                     }
                 } catch (err) {
-                    alert(`Error: ${err.message}`);
+                    showCustomAlert(`Error: ${err.message}`);
                 }
             });
 
@@ -550,12 +544,12 @@ function setupCreateGroupModal() {
                     const error = await res.json();
                     throw new Error(error.msg || 'Failed to create group');
                 }
-                alert('Group created successfully!');
+                showCustomAlert('Group created successfully!');
                 createGroupForm.reset();
                 createGroupModal.classList.add('hidden');
                 document.dispatchEvent(new Event('reloadDashboard'));
             } catch (err) {
-                alert(`Error: ${err.message}`);
+                showCustomAlert(`Error: ${err.message}`);
             } finally {
                 submitButton.disabled = false;
                 submitButton.textContent = 'Create Group';
@@ -573,4 +567,39 @@ function getSubjectColor(subject = '') {
     if (s.includes('history')) return 'bg-rose-100 text-rose-700';
     return 'bg-slate-100 text-slate-700';
 };
+
+function showCustomAlert(message) {
+    const existingAlert = document.getElementById('custom-alert-overlay');
+    if (existingAlert) {
+        existingAlert.remove();
+    }
+
+    const overlay = document.createElement('div');
+    overlay.id = 'custom-alert-overlay';
+    overlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50';
+
+    const alertBox = document.createElement('div');
+    alertBox.className = 'bg-white p-6 rounded-lg shadow-xl text-center max-w-sm w-full mx-4';
+
+    const title = document.createElement('h3');
+    title.textContent = 'StudySphere Says';
+    title.className = 'text-lg font-bold mb-4';
+
+    const messageP = document.createElement('p');
+    messageP.textContent = message;
+    messageP.className = 'text-gray-700 mb-6';
+
+    const okButton = document.createElement('button');
+    okButton.textContent = 'OK';
+    okButton.className = 'bg-indigo-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-indigo-500 focus:outline-none';
+    
+    okButton.onclick = () => overlay.remove();
+
+    alertBox.appendChild(title);
+    alertBox.appendChild(messageP);
+    alertBox.appendChild(okButton);
+    overlay.appendChild(alertBox);
+
+    document.body.appendChild(overlay);
+}
 
