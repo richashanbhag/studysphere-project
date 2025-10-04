@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- Configuration ---
-    const API_URL = 'http://localhost:5000/api';
-    const SOCKET_URL = 'http://localhost:5000';
+    const API_URL = 'https://studysphere-backend-richa.onrender.com/api';
+    const SOCKET_URL = 'https://studysphere-backend-richa.onrender.com';
     const token = localStorage.getItem('token');
     const currentPath = window.location.pathname;
     let currentUserId = null;
