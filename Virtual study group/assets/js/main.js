@@ -3,377 +3,540 @@ document.addEventListener('DOMContentLoaded', () => {
     const API_URL = 'https://studysphere-backend-richa.onrender.com/api';
     const SOCKET_URL = 'https://studysphere-backend-richa.onrender.com';
     const token = localStorage.getItem('token');
-    
-    // --- THE FIX IS HERE ---
-    // Get the current path and remove any trailing slash if it exists
-    let currentPath = window.location.pathname;
-    if (currentPath.length > 1 && currentPath.endsWith('/')) {
-        currentPath = currentPath.slice(0, -1);
-    }
+    const currentPath = window.location.pathname;
+    let currentUserId = null;
 
     // --- Authentication Check ---
-    const isProtected = (path) => path.endsWith('/dashboard') || path.endsWith('/dashboard.html') || path.endsWith('/groups') || path.endsWith('/groups.html') || path.endsWith('/group') || path.endsWith('/group.html');
-    if (isProtected(currentPath) && !token) {
+    const protectedPaths = ['dashboard.html', 'groups.html', 'group.html'];
+    if (protectedPaths.some(path => currentPath.includes(path)) && !token) {
         window.location.href = 'login.html';
         return;
     }
 
-    // --- Page-Specific Logic (Now using the cleaned path) ---
-    if (currentPath.endsWith('/dashboard') || currentPath.endsWith('/dashboard.html')) {
-        setupDashboardPage();
-    } else if (currentPath.endsWith('/groups') || currentPath.endsWith('/groups.html')) {
-        setupGroupsPage();
-    } else if (currentPath.endsWith('/group') || currentPath.endsWith('/group.html')) {
-        setupGroupDetailPage();
-    } else if (currentPath.endsWith('/login') || currentPath.endsWith('/login.html')) {
-        setupLoginPage();
-    } else if (currentPath.endsWith('/register') || currentPath.endsWith('/register.html')) {
-        setupRegisterPage();
-    }
-    
-    // Universal setup
-    setupGeneralUI();
-});
+    // --- General UI ---
+    const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+    const mobileMenu = document.getElementById('mobile-menu');
+    mobileMenuBtn?.addEventListener('click', () => {
+        mobileMenu?.classList.toggle('hidden');
+    });
 
-// --- Page Setup Functions ---
-
-function setupLoginPage() {
-    const loginForm = document.getElementById('login-form');
-    if (loginForm) {
-        loginForm.addEventListener('submit', handleLogin);
-    }
-}
-
-function setupRegisterPage() {
-    const registerForm = document.getElementById('register-form');
-    if (registerForm) {
-        registerForm.addEventListener('submit', handleRegister);
-    }
-}
-
-function setupDashboardPage() {
-    loadDashboardData();
-    const createGroupForm = document.getElementById('create-group-form');
-    if (createGroupForm) {
-        createGroupForm.addEventListener('submit', handleCreateGroup);
-    }
-}
-
-function setupGroupsPage() {
-    loadPublicGroups();
-    handleJoinViaLink();
-}
-
-function setupGroupDetailPage() {
-    loadGroupPageData();
-}
-
-function setupGeneralUI() {
     document.body.addEventListener('click', (e) => {
-        if (e.target.id === 'logout-btn' || e.target.closest('#logout-btn')) {
+        if (e.target.classList.contains('logout-btn') || e.target.closest('.logout-btn')) {
             localStorage.removeItem('token');
             window.location.href = 'index.html';
         }
     });
 
-    const modal = document.getElementById('create-group-modal');
-    const openModalBtn = document.getElementById('open-modal-btn');
-    const closeModalBtn = document.getElementById('close-modal-btn');
-
-    if (openModalBtn) openModalBtn.onclick = () => modal.classList.remove('hidden');
-    if (closeModalBtn) closeModalBtn.onclick = () => modal.classList.add('hidden');
-    window.onclick = (event) => {
-        if (event.target == modal) {
-            modal.classList.add('hidden');
-        }
-    };
-}
-
-// --- Handler & Logic Functions ---
-
-async function handleLogin(e) {
-    e.preventDefault();
-    const email = e.target.elements.email.value;
-    const password = e.target.elements.password.value;
-    const API_URL = 'https://studysphere-backend-richa.onrender.com/api';
-
-    try {
-        const response = await fetch(`${API_URL}/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password }),
+    // --- Auth Forms ---
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = e.target.elements.email.value;
+            const password = e.target.elements.password.value;
+            try {
+                const res = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.msg || 'Login failed');
+                localStorage.setItem('token', data.token);
+                window.location.href = 'dashboard.html';
+            } catch (err) {
+                alert(`Login Error: ${err.message}`);
+            }
         });
-        const data = await response.json();
-        if (!response.ok) {
-            return showCustomAlert(`Login Error: ${data.msg || 'Something went wrong.'}`);
-        }
-        localStorage.setItem('token', data.token);
-        window.location.href = 'dashboard.html';
-    } catch (err) {
-        showCustomAlert('Could not connect to the server. Please try again later.');
     }
-}
 
-async function handleRegister(e) {
-    e.preventDefault();
-    const fullName = e.target.elements.fullName.value;
-    const email = e.target.elements.email.value;
-    const password = e.target.elements.password.value;
-    const API_URL = 'https://studysphere-backend-richa.onrender.com/api';
-
-    try {
-        const response = await fetch(`${API_URL}/auth/register`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fullName, email, password }),
+    const registerForm = document.getElementById('register-form');
+    if (registerForm) {
+        registerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fullName = e.target.elements.fullName.value;
+            const email = e.target.elements.email.value;
+            const password = e.target.elements.password.value;
+            try {
+                const res = await fetch(`${API_URL}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fullName, email, password }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.msg || 'Registration failed');
+                localStorage.setItem('token', data.token);
+                window.location.href = 'dashboard.html';
+            } catch (err) {
+                alert(`Registration Error: ${err.message}`);
+            }
         });
-        const data = await response.json();
-        if (!response.ok) {
-            return showCustomAlert(`Registration Error: ${data.msg || 'Something went wrong.'}`);
-        }
-        localStorage.setItem('token', data.token);
-        window.location.href = 'dashboard.html';
-    } catch (err) {
-        showCustomAlert('Could not connect to the server. Please try again later.');
     }
-}
 
-async function loadDashboardData() {
-    const token = localStorage.getItem('token');
-    const API_URL = 'https://studysphere-backend-richa.onrender.com/api';
-    try {
-        const [userRes, groupsRes] = await Promise.all([
-            fetch(`${API_URL}/auth/me`, { headers: { 'x-auth-token': token } }),
-            fetch(`${API_URL}/groups/my`, { headers: { 'x-auth-token': token } })
-        ]);
+    // --- Dashboard Page ---
+    if (currentPath.includes('dashboard.html')) {
+        const populateDashboard = async () => {
+            try {
+                const [userRes, groupsRes] = await Promise.all([
+                    fetch(`${API_URL}/auth/me`, { headers: { 'x-auth-token': token } }),
+                    fetch(`${API_URL}/groups/my`, { headers: { 'x-auth-token': token } })
+                ]);
 
-        if (userRes.status === 401 || groupsRes.status === 401) {
-             showCustomAlert('Your session has expired. Please log in again.');
-             return handleLogout();
-        }
-        if (!userRes.ok) throw new Error('Failed to fetch user data.');
-        if (!groupsRes.ok) throw new Error('Failed to fetch your groups.');
+                // --- THE FIX IS HERE ---
+                // Only log out for a specific "Unauthorized" error.
+                if (userRes.status === 401 || groupsRes.status === 401) {
+                    alert('Your session has expired. Please log in again.');
+                    localStorage.removeItem('token');
+                    window.location.href = 'login.html';
+                    return; // Stop execution
+                }
 
-        const user = await userRes.json();
-        const groups = await groupsRes.json();
-        
-        const userNameEl = document.getElementById('user-name');
-        if (userNameEl) userNameEl.textContent = user.fullName;
-        
-        const myGroupsContainer = document.getElementById('my-groups-container');
-        if (!myGroupsContainer) return;
+                // For other errors, just show a message without logging out.
+                 if (!userRes.ok) {
+                    const errorData = await userRes.json();
+                    throw new Error(errorData.msg || 'Failed to load user data.');
+                }
+                 if (!groupsRes.ok) {
+                    const errorData = await groupsRes.json();
+                    throw new Error(errorData.msg || 'Failed to load your groups.');
+                }
 
-        myGroupsContainer.innerHTML = '';
-        if (groups.length === 0) {
-            myGroupsContainer.innerHTML = '<p class="text-gray-500">You haven\'t joined any groups yet.</p>';
-        } else {
+                const user = await userRes.json();
+                const groups = await groupsRes.json();
+                currentUserId = user._id;
+
+                document.getElementById('user-name').textContent = user.fullName;
+                renderMyGroups(groups);
+
+            } catch (err) {
+                // The general catch block now only shows an alert.
+                alert(err.message);
+            }
+        };
+
+        const renderMyGroups = (groups) => {
+            const listEl = document.getElementById('my-groups-list');
+            listEl.innerHTML = '';
+            if (groups.length === 0) {
+                listEl.innerHTML = `<p class="text-slate-500 col-span-full">You haven't joined or created any groups yet.</p>`;
+                return;
+            }
             groups.forEach(group => {
-                const groupElement = document.createElement('div');
-                groupElement.className = 'bg-white p-4 rounded-lg shadow cursor-pointer hover:shadow-lg transition-shadow';
-                groupElement.innerHTML = `
-                    <h3 class="font-bold text-lg">${group.name}</h3>
-                    <p class="text-gray-600">${group.subject}</p>
-                    <p class="text-sm text-gray-500 mt-2">${group.members.length} / ${group.capacity} members</p>
-                `;
-                groupElement.onclick = () => {
-                    window.location.href = `group.html?id=${group._id}`;
+                const card = `
+                    <a href="group.html?id=${group._id}" class="block bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all">
+                        <span class="text-xs font-semibold px-2 py-1 rounded-full ${getSubjectColor(group.subject)}">${group.subject}</span>
+                        <h3 class="mt-3 text-xl font-bold text-slate-800">${group.name}</h3>
+                        <p class="text-sm text-slate-500 mt-1">${group.university}</p>
+                        <div class="flex items-center space-x-2 mt-4 text-slate-600">
+                            <i data-lucide="users" class="w-4 h-4"></i>
+                            <span>${group.members.length} / ${group.capacity} members</span>
+                        </div>
+                    </a>`;
+                listEl.innerHTML += card;
+            });
+            lucide.createIcons();
+        };
+        
+        document.addEventListener('reloadDashboard', populateDashboard);
+        populateDashboard();
+    }
+
+    // --- Group Detail Page ---
+    if (currentPath.includes('group.html')) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const groupId = urlParams.get('id');
+        if (!groupId) { window.location.href = 'dashboard.html'; return; }
+
+        const socket = io(SOCKET_URL);
+        const chatMessagesEl = document.getElementById('chat-messages');
+
+        const fetchCurrentUser = async () => {
+            try {
+                const res = await fetch(`${API_URL}/auth/me`, { headers: { 'x-auth-token': token } });
+                if (!res.ok) throw new Error('Could not authenticate user.');
+                const user = await res.json();
+                currentUserId = user._id;
+                loadGroupPage();
+            } catch (error) {
+                window.location.href = 'login.html';
+            }
+        };
+        fetchCurrentUser();
+
+        socket.on('connect', () => socket.emit('join group', groupId));
+        socket.on('chat message', (msg) => appendMessage(msg));
+        socket.on('file uploaded', (file) => appendFile(file, true));
+
+        const loadGroupPage = async () => {
+            try {
+                const res = await fetch(`${API_URL}/groups/${groupId}`, { headers: { 'x-auth-token': token } });
+                 if (res.status === 403) {
+                    throw new Error("You are not a member of this group.");
+                }
+                if (!res.ok) throw new Error('Failed to load group details.');
+
+                const group = await res.json();
+                
+                const [messages, files] = await Promise.all([
+                    fetch(`${API_URL}/groups/${groupId}/messages`, { headers: { 'x-auth-token': token } }).then(r => r.json()),
+                    fetch(`${API_URL}/groups/${groupId}/files`, { headers: { 'x-auth-token': token } }).then(r => r.json())
+                ]);
+
+                document.getElementById('group-header').innerHTML = `<h1 class="text-3xl font-bold">${group.name}</h1><p class="text-slate-500 mt-1">${group.subject} at ${group.university}</p>`;
+                chatMessagesEl.innerHTML = '';
+                messages.forEach(appendMessage);
+                renderFiles(files);
+                
+                if (group.createdBy._id === currentUserId) {
+                    loadJoinRequests();
+                }
+
+            } catch (err) {
+                 document.querySelector('main').innerHTML = `<p class="text-center text-red-500">${err.message} <a href="dashboard.html" class="text-indigo-600">Return to Dashboard</a></p>`;
+            }
+        };
+        
+        const loadJoinRequests = async () => {
+            const requestsPanel = document.getElementById('join-requests-panel');
+            const requestsList = document.getElementById('join-requests-list');
+            try {
+                const res = await fetch(`${API_URL}/groups/${groupId}/requests`, { headers: { 'x-auth-token': token } });
+                if (!res.ok) {
+                    const error = await res.json();
+                    throw new Error(error.msg || 'Failed to fetch requests.');
                 };
-                myGroupsContainer.appendChild(groupElement);
-            });
-        }
-    } catch (err) {
-        showCustomAlert(`Error: ${err.message}`);
-    }
-}
-
-async function loadPublicGroups() {
-    const groupsContainer = document.getElementById('public-groups-container');
-    const API_URL = 'https://studysphere-backend-richa.onrender.com/api';
-     if (!groupsContainer) return;
-
-    try {
-        const response = await fetch(`${API_URL}/groups`, {
-            headers: { 'x-auth-token': localStorage.getItem('token') }
+                const requests = await res.json();
+                
+                if (requests.length > 0) {
+                    requestsPanel.classList.remove('hidden');
+                    requestsList.innerHTML = '';
+                    requests.forEach(req => {
+                        const reqEl = document.createElement('div');
+                        reqEl.className = 'flex items-center justify-between p-3 bg-slate-50 rounded-lg';
+                        reqEl.innerHTML = `
+                            <p><span class="font-semibold">${req.user.fullName}</span> wants to join.</p>
+                            <div class="flex gap-2">
+                                <button data-req-id="${req._id}" data-action="approve" class="respond-btn bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full hover:bg-green-200">Approve</button>
+                                <button data-req-id="${req._id}" data-action="reject" class="respond-btn bg-red-100 text-red-700 text-xs font-bold px-3 py-1 rounded-full hover:bg-red-200">Reject</button>
+                            </div>`;
+                        requestsList.appendChild(reqEl);
+                    });
+                } else {
+                    requestsPanel.classList.add('hidden');
+                }
+            } catch (err) {
+                alert(`Error loading join requests: ${err.message}`);
+                requestsPanel.classList.remove('hidden');
+                requestsList.innerHTML = `<p class="text-red-500 text-center">Could not load join requests. Please try again later.</p>`;
+            }
+        };
+        
+        document.body.addEventListener('click', async (e) => {
+            if (e.target.classList.contains('respond-btn')) {
+                const reqId = e.target.dataset.reqId;
+                const action = e.target.dataset.action;
+                const button = e.target;
+                button.disabled = true;
+                try {
+                    const res = await fetch(`${API_URL}/groups/requests/${reqId}/respond`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
+                        body: JSON.stringify({ action })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.msg);
+                    
+                    alert(`Request ${action}d successfully.`);
+                    button.closest('.flex').parentElement.remove();
+                     if (document.getElementById('join-requests-list').children.length === 0) {
+                        document.getElementById('join-requests-panel').classList.add('hidden');
+                    }
+                    
+                } catch (err) {
+                    alert(`Error: ${err.message}`);
+                    button.disabled = false;
+                }
+            }
         });
-        if (!response.ok) throw new Error('Could not fetch public groups.');
-        const groups = await response.json();
 
-        groupsContainer.innerHTML = '';
-        if (groups.length === 0) {
-            groupsContainer.innerHTML = '<p class="text-gray-500 col-span-full text-center">No public groups available to join right now.</p>';
+        const appendMessage = (msg) => {
+            const isMe = msg.user._id === currentUserId;
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `flex items-end gap-2 ${isMe ? 'justify-end' : 'justify-start'}`;
+            messageDiv.innerHTML = `
+                <div class="max-w-xs md:max-w-md">
+                    ${!isMe ? `<div class="text-xs text-slate-500 mb-1 ml-3">${msg.user.fullName}</div>` : ''}
+                    <div class="px-4 py-2 rounded-2xl ${isMe ? 'bg-indigo-600 text-white rounded-br-lg' : 'bg-slate-100 text-slate-800 rounded-bl-lg'}">
+                        ${msg.content}
+                    </div>
+                </div>`;
+            chatMessagesEl.appendChild(messageDiv);
+            chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+        };
+
+        const renderFiles = (files) => {
+            const fileListEl = document.getElementById('file-list');
+            fileListEl.innerHTML = '';
+            if (files.length === 0) {
+                fileListEl.innerHTML = `<p class="text-sm text-center text-slate-400">No files shared yet.</p>`;
+                return;
+            }
+            files.forEach(file => appendFile(file, false));
+        };
+        
+        const appendFile = (file, prepend) => {
+            const fileListEl = document.getElementById('file-list');
+            if (fileListEl.querySelector('p')) fileListEl.innerHTML = '';
+            const fileEl = document.createElement('a');
+            fileEl.href = `${SOCKET_URL}/uploads/${file.filePath}`;
+            fileEl.target = '_blank';
+            fileEl.className = 'block p-3 rounded-lg hover:bg-slate-100 transition-colors';
+            fileEl.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <i data-lucide="file-text" class="w-5 h-5 text-indigo-500 flex-shrink-0"></i>
+                    <div class="flex-1 overflow-hidden">
+                        <p class="text-sm font-medium truncate">${file.originalName}</p>
+                        <p class="text-xs text-slate-400">by ${file.user.fullName}</p>
+                    </div>
+                </div>`;
+            prepend ? fileListEl.prepend(fileEl) : fileListEl.appendChild(fileEl);
+            lucide.createIcons();
+        };
+
+        document.getElementById('chat-form')?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const input = document.getElementById('message-input');
+            if (input && input.value.trim()) {
+                socket.emit('chat message', { groupId, token, content: input.value });
+                input.value = '';
+            }
+        });
+
+        document.getElementById('file-upload-form')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('file-input');
+            if (!fileInput || !fileInput.files[0]) return;
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            const button = e.target.querySelector('button');
+            button.textContent = 'Uploading...';
+            button.disabled = true;
+            try {
+                const res = await fetch(`${API_URL}/groups/${groupId}/upload`, {
+                    method: 'POST',
+                    headers: { 'x-auth-token': token },
+                    body: formData,
+                });
+                if (!res.ok) throw new Error('Upload failed.');
+                e.target.reset();
+            } catch (err) {
+                alert(err.message);
+            } finally {
+                button.textContent = 'Upload';
+                button.disabled = false;
+            }
+        });
+        
+        document.getElementById('share-group-btn')?.addEventListener('click', () => {
+             const inviteLink = `${window.location.origin}${window.location.pathname.replace('group.html', 'groups.html')}?join=${groupId}`;
+             navigator.clipboard.writeText(inviteLink).then(() => alert('Group invite link copied to clipboard!'));
+        });
+    }
+
+    // --- Find Groups Page ---
+    if (currentPath.includes('groups.html')) {
+        const loadPublicGroups = async () => {
+            try {
+                const res = await fetch(`${API_URL}/groups`, { headers: { 'x-auth-token': token } });
+                const groups = await res.json();
+                renderPublicGroups(groups);
+            } catch (err) {
+                document.getElementById('public-groups-list').innerHTML = `<p class="text-red-500 col-span-full">Failed to load public groups.</p>`;
+            }
+        };
+
+        async function handleJoinClick(e) {
+            const btn = e.target;
+            const groupId = btn.dataset.groupId;
+            btn.disabled = true;
+            btn.textContent = 'Requesting...';
+            try {
+                const res = await fetch(`${API_URL}/groups/join/${groupId}`, {
+                    method: 'PUT',
+                    headers: { 'x-auth-token': token }
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.msg);
+
+                alert(data.msg);
+                if (data.group) {
+                    btn.textContent = 'Joined';
+                } else {
+                    btn.textContent = 'Requested';
+                }
+            } catch (err) {
+                alert(`Error: ${err.message}`);
+                btn.disabled = false;
+                btn.textContent = 'Join';
+            }
+        }
+
+        function renderPublicGroups(groups) {
+             const listEl = document.getElementById('public-groups-list');
+             listEl.innerHTML = '';
+             if (groups.length === 0) {
+                 listEl.innerHTML = `<p class="text-slate-500 col-span-full">No public groups available to join right now.</p>`;
+                 return;
+             }
+             groups.forEach(group => {
+                 const card = `
+                     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                         <h3 class="text-xl font-bold text-slate-800">${group.name}</h3>
+                         <p class="text-sm text-slate-500 mt-1">${group.subject} at ${group.university}</p>
+                          <p class="text-xs text-slate-400 mt-2">Created by ${group.createdBy.fullName}</p>
+                         <div class="flex items-center justify-between mt-4">
+                             <span class="text-slate-600">${group.members.length} / ${group.capacity} members</span>
+                             <button data-group-id="${group._id}" class="join-group-btn bg-slate-800 text-white font-semibold px-4 py-2 rounded-lg hover:bg-slate-700">Join</button>
+                         </div>
+                     </div>`;
+                 listEl.innerHTML += card;
+             });
+             
+             document.querySelectorAll('.join-group-btn').forEach(btn => {
+                 btn.addEventListener('click', handleJoinClick);
+             });
+        }
+        
+        async function handleJoinInvitation(groupId) {
+            const joinPromptEl = document.getElementById('join-prompt');
+            joinPromptEl.classList.remove('hidden');
+            joinPromptEl.innerHTML = `<p class="text-center text-slate-500">Fetching group information...</p>`;
+
+            try {
+                const res = await fetch(`${API_URL}/groups/${groupId}`, { headers: { 'x-auth-token': token } });
+                if (!res.ok) {
+                   const errText = await res.json();
+                   throw new Error(errText.msg || 'Could not fetch group details.');
+                }
+                const group = await res.json();
+                
+                joinPromptEl.innerHTML = `
+                    <h2 class="text-xl font-bold text-center">You've been invited!</h2>
+                    <div class="my-4 p-4 bg-slate-50 rounded-lg border text-center">
+                        <h3 class="font-semibold text-lg">${group.name}</h3>
+                        <p class="text-slate-600">${group.subject} at ${group.university}</p>
+                    </div>
+                    <div class="flex justify-center gap-4">
+                        <button id="confirm-join-btn" class="bg-indigo-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-indigo-500">Confirm Request</button>
+                        <button id="decline-join-btn" class="bg-slate-200 text-slate-700 font-semibold px-6 py-2 rounded-lg hover:bg-slate-300">Decline</button>
+                    </div>`;
+
+                document.getElementById('confirm-join-btn').addEventListener('click', async () => {
+                    try {
+                        const joinRes = await fetch(`${API_URL}/groups/join/${groupId}`, {
+                            method: 'PUT',
+                            headers: { 'x-auth-token': token }
+                        });
+                        const data = await joinRes.json();
+                        if (!joinRes.ok) throw new Error(data.msg || 'Failed to send request.');
+                        
+                        alert(data.msg);
+                        if (data.group) {
+                             window.location.href = `group.html?id=${groupId}`;
+                        } else {
+                             joinPromptEl.innerHTML = `
+                                 <div class="text-center">
+                                     <h2 class="text-xl font-bold">Request Sent!</h2>
+                                     <p class="text-slate-600 mt-2">The group creator has been notified. You can access the group once approved.</p>
+                                     <button id="close-prompt-btn" class="mt-4 bg-slate-800 text-white font-semibold px-6 py-2 rounded-lg hover:bg-slate-700">OK</button>
+                                 </div>`;
+                             document.getElementById('close-prompt-btn').addEventListener('click', () => {
+                                 joinPromptEl.classList.add('hidden');
+                                 window.history.pushState({}, '', window.location.pathname);
+                             });
+                        }
+                    } catch (err) {
+                        alert(`Error: ${err.message}`);
+                    }
+                });
+
+                 document.getElementById('decline-join-btn').addEventListener('click', () => {
+                     joinPromptEl.classList.add('hidden');
+                     window.history.pushState({}, '', window.location.pathname);
+                 });
+            } catch (err) {
+                joinPromptEl.innerHTML = `<p class="text-center text-red-500">Error: ${err.message}</p>`;
+            }
+        }
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const joinGroupId = urlParams.get('join');
+
+        if (joinGroupId) {
+            handleJoinInvitation(joinGroupId);
         } else {
-            groups.forEach(group => {
-                const groupCard = document.createElement('div');
-                groupCard.className = 'bg-white p-6 rounded-lg shadow-md flex flex-col justify-between';
-                groupCard.innerHTML = `
-                    <div>
-                        <h3 class="text-xl font-bold mb-2">${group.name}</h3>
-                        <p class="text-gray-700 mb-1"><span class="font-semibold">Subject:</span> ${group.subject}</p>
-                        <p class="text-gray-700 mb-4"><span class="font-semibold">University:</span> ${group.university || 'N/A'}</p>
-                    </div>
-                    <div class="flex justify-between items-center mt-4">
-                         <span class="text-sm text-gray-500">${group.members.length} / ${group.capacity} Members</span>
-                        <button data-group-id="${group._id}" class="join-group-btn bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600">Join</button>
-                    </div>
-                `;
-                groupsContainer.appendChild(groupCard);
-            });
-            document.querySelectorAll('.join-group-btn').forEach(button => {
-                button.addEventListener('click', () => handleJoinGroup(button.dataset.groupId));
-            });
-        }
-    } catch (err) {
-        showCustomAlert(`Error: ${err.message}`);
-        groupsContainer.innerHTML = '<p class="text-red-500 col-span-full text-center">Could not load groups. Please try again later.</p>';
-    }
-}
-
-async function handleCreateGroup(e) {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    const isPrivate = formData.get('isPrivate') === 'on';
-    const API_URL = 'https://studysphere-backend-richa.onrender.com/api';
-    
-    const body = {
-        name: formData.get('name'),
-        subject: formData.get('subject'),
-        university: formData.get('university'),
-        capacity: formData.get('capacity'),
-        isPrivate: isPrivate
-    };
-
-    try {
-        const response = await fetch(`${API_URL}/groups`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-auth-token': localStorage.getItem('token')
-            },
-            body: JSON.stringify(body)
-        });
-        const data = await response.json();
-        if (!response.ok) {
-            return showCustomAlert(`Error: ${data.msg || 'Failed to create group.'}`);
-        }
-        document.getElementById('create-group-modal').classList.add('hidden');
-        loadDashboardData();
-    } catch (err) {
-        showCustomAlert('An error occurred while creating the group.');
-    }
-}
-
-async function handleJoinGroup(groupId) {
-    const API_URL = 'https://studysphere-backend-richa.onrender.com/api';
-    try {
-        const response = await fetch(`${API_URL}/groups/join/${groupId}`, {
-            method: 'PUT',
-            headers: { 'x-auth-token': localStorage.getItem('token') }
-        });
-        const data = await response.json();
-        showCustomAlert(data.msg);
-        if (response.ok && data.group) {
             loadPublicGroups();
         }
-    } catch (err) {
-        showCustomAlert('An error occurred while trying to join the group.');
-    }
-}
-
-async function loadGroupPageData() {
-    const mainContent = document.getElementById('group-main-content');
-    const params = new URLSearchParams(window.location.search);
-    const groupId = params.get('id');
-    const API_URL = 'https://studysphere-backend-richa.onrender.com/api';
-
-    if (!groupId) {
-        if (mainContent) mainContent.innerHTML = '<p class="text-red-500 text-center">No group ID provided. <a href="dashboard.html" class="text-blue-500">Return to Dashboard</a></p>';
-        return;
     }
 
-    try {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`${API_URL}/groups/${groupId}`, {
-            headers: { 'x-auth-token': token }
+    // --- Create Group Modal ---
+    const createGroupModal = document.getElementById('create-group-modal');
+    if (createGroupModal) {
+        const openModalBtn = document.getElementById('open-create-group-modal');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const createGroupForm = document.getElementById('create-group-form');
+
+        openModalBtn?.addEventListener('click', () => createGroupModal.classList.remove('hidden'));
+        closeModalBtn?.addEventListener('click', () => createGroupModal.classList.add('hidden'));
+
+        createGroupForm?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitButton = e.target.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            submitButton.textContent = 'Creating...';
+            
+            const groupData = {
+                name: e.target.elements.name.value,
+                subject: e.target.elements.subject.value,
+                university: e.target.elements.university.value,
+                capacity: e.target.elements.capacity.value,
+                isPrivate: e.target.elements.isPrivate.checked
+            };
+
+            try {
+                const res = await fetch(`${API_URL}/groups`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
+                    body: JSON.stringify(groupData),
+                });
+                if (!res.ok) {
+                    const error = await res.json();
+                    throw new Error(error.msg || 'Failed to create group');
+                }
+                alert('Group created successfully!');
+                createGroupForm.reset();
+                createGroupModal.classList.add('hidden');
+                document.dispatchEvent(new Event('reloadDashboard'));
+            } catch (err) {
+                 alert(`Error: ${err.message}`);
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Create Group';
+            }
         });
-
-        if (!response.ok) {
-           const errorText = await response.text();
-           console.error("Server responded with an error page:", errorText);
-           throw new Error(`Failed to load group details. Server responded with status ${response.status}.`);
-        }
-
-        const group = await response.json();
-        
-        const groupNameEl = document.getElementById('group-name');
-        if(groupNameEl) groupNameEl.textContent = group.name;
-        
-    } catch (err) {
-         if (mainContent) mainContent.innerHTML = `<p class="text-red-500 text-center">${err.message} <a href="dashboard.html" class="text-blue-500">Return to Dashboard</a></p>`;
-    }
-}
-
-function handleLogout() {
-    localStorage.removeItem('token');
-    window.location.href = 'login.html';
-}
-
-function showCustomAlert(message) {
-    const existingAlert = document.getElementById('custom-alert-overlay');
-    if (existingAlert) {
-        existingAlert.remove();
     }
 
-    const overlay = document.createElement('div');
-    overlay.id = 'custom-alert-overlay';
-    overlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50';
-
-    const alertBox = document.createElement('div');
-    alertBox.className = 'bg-white p-6 rounded-lg shadow-xl text-center max-w-sm w-full mx-4';
-
-    const title = document.createElement('h3');
-    title.textContent = 'StudySphere Says';
-    title.className = 'text-lg font-bold mb-4';
-
-    const messageP = document.createElement('p');
-    messageP.textContent = message;
-    messageP.className = 'text-gray-700 mb-6';
-
-    const okButton = document.createElement('button');
-    okButton.textContent = 'OK';
-    okButton.className = 'bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50';
-    
-    okButton.onclick = () => overlay.remove();
-
-    alertBox.appendChild(title);
-    alertBox.appendChild(messageP);
-    alertBox.appendChild(okButton);
-    overlay.appendChild(alertBox);
-
-    document.body.appendChild(overlay);
-}
-
-async function handleJoinViaLink() {
-    const params = new URLSearchParams(window.location.search);
-    const joinGroupId = params.get('join');
-    if (!joinGroupId) return;
-
-    const joinPrompt = document.getElementById('join-prompt');
-    if(!joinPrompt) return;
-
-    joinPrompt.classList.remove('hidden');
-    
-    const confirmBtn = document.getElementById('confirm-join-btn');
-    const declineBtn = document.getElementById('decline-join-btn');
-
-    if(confirmBtn) confirmBtn.onclick = async () => {
-        await handleJoinGroup(joinGroupId);
-        window.history.replaceState({}, document.title, window.location.pathname);
-        joinPrompt.classList.add('hidden');
+    // --- Helper Functions ---
+    const getSubjectColor = (subject = '') => {
+        const s = subject.toLowerCase();
+        if (s.includes('math')) return 'bg-sky-100 text-sky-700';
+        if (s.includes('chem')) return 'bg-teal-100 text-teal-700';
+        if (s.includes('computer') || s.includes('science')) return 'bg-indigo-100 text-indigo-700';
+        if (s.includes('physic')) return 'bg-amber-100 text-amber-700';
+        if (s.includes('history')) return 'bg-rose-100 text-rose-700';
+        return 'bg-slate-100 text-slate-700';
     };
 
-    if(declineBtn) declineBtn.onclick = () => {
-        window.history.replaceState({}, document.title, window.location.pathname);
-        joinPrompt.classList.add('hidden');
-    };
-}
+    lucide.createIcons();
+});
 
