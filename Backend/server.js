@@ -12,7 +12,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "*", // IMPORTANT: In production, restrict this to your front-end's actual URL
+        origin: "https://studysphere-richa.netlify.app", // IMPORTANT: In production, restrict this to your front-end's actual URL
         methods: ["GET", "POST"]
     }
 });
