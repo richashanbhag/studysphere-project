@@ -3,7 +3,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const API_URL = 'https://studysphere-backend-richa.onrender.com/api';
     const SOCKET_URL = 'https://studysphere-backend-richa.onrender.com';
     const token = localStorage.getItem('token');
-    const currentPath = window.location.pathname;
+    
+    // --- THE FIX IS HERE ---
+    // Get the current path and remove any trailing slash if it exists
+    let currentPath = window.location.pathname;
+    if (currentPath.length > 1 && currentPath.endsWith('/')) {
+        currentPath = currentPath.slice(0, -1);
+    }
 
     // --- Authentication Check ---
     const isProtected = (path) => path.endsWith('/dashboard') || path.endsWith('/dashboard.html') || path.endsWith('/groups') || path.endsWith('/groups.html') || path.endsWith('/group') || path.endsWith('/group.html');
@@ -12,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-    // --- Page-Specific Logic ---
+    // --- Page-Specific Logic (Now using the cleaned path) ---
     if (currentPath.endsWith('/dashboard') || currentPath.endsWith('/dashboard.html')) {
         setupDashboardPage();
     } else if (currentPath.endsWith('/groups') || currentPath.endsWith('/groups.html')) {
@@ -89,6 +95,7 @@ async function handleLogin(e) {
     e.preventDefault();
     const email = e.target.elements.email.value;
     const password = e.target.elements.password.value;
+    const API_URL = 'https://studysphere-backend-richa.onrender.com/api';
 
     try {
         const response = await fetch(`${API_URL}/auth/login`, {
@@ -112,6 +119,7 @@ async function handleRegister(e) {
     const fullName = e.target.elements.fullName.value;
     const email = e.target.elements.email.value;
     const password = e.target.elements.password.value;
+    const API_URL = 'https://studysphere-backend-richa.onrender.com/api';
 
     try {
         const response = await fetch(`${API_URL}/auth/register`, {
@@ -132,6 +140,7 @@ async function handleRegister(e) {
 
 async function loadDashboardData() {
     const token = localStorage.getItem('token');
+    const API_URL = 'https://studysphere-backend-richa.onrender.com/api';
     try {
         const [userRes, groupsRes] = await Promise.all([
             fetch(`${API_URL}/auth/me`, { headers: { 'x-auth-token': token } }),
@@ -179,6 +188,7 @@ async function loadDashboardData() {
 
 async function loadPublicGroups() {
     const groupsContainer = document.getElementById('public-groups-container');
+    const API_URL = 'https://studysphere-backend-richa.onrender.com/api';
      if (!groupsContainer) return;
 
     try {
@@ -222,6 +232,7 @@ async function handleCreateGroup(e) {
     e.preventDefault();
     const formData = new FormData(e.target);
     const isPrivate = formData.get('isPrivate') === 'on';
+    const API_URL = 'https://studysphere-backend-richa.onrender.com/api';
     
     const body = {
         name: formData.get('name'),
@@ -252,6 +263,7 @@ async function handleCreateGroup(e) {
 }
 
 async function handleJoinGroup(groupId) {
+    const API_URL = 'https://studysphere-backend-richa.onrender.com/api';
     try {
         const response = await fetch(`${API_URL}/groups/join/${groupId}`, {
             method: 'PUT',
@@ -271,6 +283,7 @@ async function loadGroupPageData() {
     const mainContent = document.getElementById('group-main-content');
     const params = new URLSearchParams(window.location.search);
     const groupId = params.get('id');
+    const API_URL = 'https://studysphere-backend-richa.onrender.com/api';
 
     if (!groupId) {
         if (mainContent) mainContent.innerHTML = '<p class="text-red-500 text-center">No group ID provided. <a href="dashboard.html" class="text-blue-500">Return to Dashboard</a></p>';
